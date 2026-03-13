@@ -108,9 +108,6 @@ export default function App() {
       if (currentAssessment && data.assessmentId === currentAssessment.id) {
         setCurrentAssessment(prev => prev ? { ...prev, participants: data.participants } : null);
       }
-      setAssessments(prev => prev.map(a =>
-        a.id === data.assessmentId ? { ...a, participant_count: data.participants?.length ?? a.participant_count } : a
-      ));
       if (user) fetchAssessments(user.id);
     });
 
@@ -119,9 +116,6 @@ export default function App() {
       if (currentAssessment && data.id === currentAssessment.id) {
         setCurrentAssessment(prev => prev ? { ...prev, name: data.name } : null);
       }
-      setAssessments(prev => prev.map(a =>
-        a.id === data.id ? { ...a, name: data.name } : a
-      ));
       if (user) fetchAssessments(user.id);
     });
 
@@ -136,12 +130,6 @@ export default function App() {
       socket.emit('join', currentAssessment.id);
     }
   }, [currentAssessment]);
-
-  useEffect(() => {
-    assessments.forEach((assessment) => {
-      socket.emit('join', assessment.id);
-    });
-  }, [assessments]);
 
   useEffect(() => {
     const savedUser = localStorage.getItem('harmony_user');
@@ -171,16 +159,6 @@ export default function App() {
     if (user && view === 'dashboard') {
       fetchAssessments(user.id);
     }
-  }, [user, view]);
-
-  useEffect(() => {
-    if (!user || view === 'login') return;
-
-    const interval = setInterval(() => {
-      fetchAssessments(user.id);
-    }, 10000);
-
-    return () => clearInterval(interval);
   }, [user, view]);
 
   useEffect(() => {
@@ -233,9 +211,8 @@ export default function App() {
 
   const handleJoinWithCode = async () => {
     if (!user || !joinCodeInput) return;
-
-    const sanitized = joinCodeInput.replace(/[^A-Z0-9]/gi, '').toUpperCase();
-    if (sanitized.length !== 6) {
+    
+    if (joinCodeInput.length !== 6) {
       setError("Invite codes must be exactly 6 characters.");
       return;
     }
@@ -243,6 +220,7 @@ export default function App() {
     setLoading(true);
     setError(null);
     try {
+      const sanitized = joinCodeInput.replace(/[^A-Z0-9]/gi, '').toUpperCase();
       const res = await fetch('/api/assessments/join-with-code', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
