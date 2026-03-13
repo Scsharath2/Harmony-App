@@ -92,8 +92,27 @@ export default function App() {
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteName, setInviteName] = useState('');
   const [copied, setCopied] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
   const [currentPillar, setCurrentPillar] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const handleCopyLink = (code: string) => {
+    const url = `${window.location.origin}?join=${code}`;
+    navigator.clipboard.writeText(url);
+    setCopiedLink(true);
+    setTimeout(() => setCopiedLink(false), 2000);
+  };
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const joinCode = params.get('join');
+    if (joinCode && user && view === 'dashboard') {
+      setJoinCodeInput(joinCode);
+      setShowJoinCodeModal(true);
+      // Clean URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, [user, view]);
 
   useEffect(() => {
     if (error) {
@@ -212,15 +231,16 @@ export default function App() {
   const handleJoinWithCode = async () => {
     if (!user || !joinCodeInput) return;
     
-    if (joinCodeInput.length !== 6) {
-      setError("Invite codes must be exactly 6 characters.");
+    const sanitized = joinCodeInput.replace(/[^A-Z0-9]/gi, '').toUpperCase();
+    
+    if (sanitized.length !== 6) {
+      setError("Invite codes must be exactly 6 characters (letters and numbers).");
       return;
     }
 
     setLoading(true);
     setError(null);
     try {
-      const sanitized = joinCodeInput.replace(/[^A-Z0-9]/gi, '').toUpperCase();
       const res = await fetch('/api/assessments/join-with-code', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -705,13 +725,31 @@ export default function App() {
                       </div>
                       <div className="flex items-center gap-2">
                         {a.role === 'creator' && (a.participant_count || 0) < 2 && (
-                          <button 
-                            onClick={(e) => { e.stopPropagation(); setCurrentAssessment(a); setShowInviteModal(true); }}
-                            className="p-2 text-[#5C5650] hover:text-[#E8B86D] transition-colors"
-                            title="Invite Partner"
-                          >
-                            <Share2 className="w-4 h-4" />
-                          </button>
+                          <div className="flex items-center gap-1">
+                            <button 
+                              onClick={(e) => { e.stopPropagation(); setCurrentAssessment(a); setShowInviteModal(true); }}
+                              className="p-2 text-[#5C5650] hover:text-[#E8B86D] transition-colors"
+                              title="Invite Partner"
+                            >
+                              <Share2 className="w-4 h-4" />
+                            </button>
+                            <button 
+                              onClick={(e) => { e.stopPropagation(); handleCopyLink(a.invite_code); }}
+                              className="p-2 text-[#5C5650] hover:text-[#E8B86D] transition-colors relative"
+                              title="Copy Invite Link"
+                            >
+                              {copiedLink ? <Check className="w-4 h-4 text-[#5ECFA0]" /> : <Copy className="w-4 h-4" />}
+                              {copiedLink && (
+                                <motion.span 
+                                  initial={{ opacity: 0, y: 10 }}
+                                  animate={{ opacity: 1, y: 0 }}
+                                  className="absolute -top-8 left-1/2 -translate-x-1/2 bg-[#5ECFA0] text-white text-[8px] px-2 py-1 rounded font-bold whitespace-nowrap"
+                                >
+                                  LINK COPIED
+                                </motion.span>
+                              )}
+                            </button>
+                          </div>
                         )}
                         {a.role === 'creator' && (
                           <button 
@@ -1276,17 +1314,26 @@ export default function App() {
                     <div className="text-[10px] uppercase tracking-[0.2em] text-[#E8B86D] font-bold mb-4">Invite Code</div>
                     <div className="text-6xl font-serif tracking-[0.15em] text-[#F2EDE4] mb-8">{currentAssessment.invite_code}</div>
                     <div className="flex flex-col gap-3">
-                      <button 
-                        onClick={() => {
-                          navigator.clipboard.writeText(currentAssessment.invite_code);
-                          setCopied(true);
-                          setTimeout(() => setCopied(false), 2000);
-                        }}
-                        className="flex items-center gap-3 mx-auto px-6 py-3 bg-[#E8B86D]/10 rounded-xl border border-[#E8B86D]/20 text-[10px] uppercase tracking-widest font-bold text-[#E8B86D] hover:bg-[#E8B86D]/20 transition-all"
-                      >
-                        {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />} 
-                        {copied ? 'Copied' : 'Copy Code'}
-                      </button>
+                      <div className="flex items-center gap-2 justify-center">
+                        <button 
+                          onClick={() => {
+                            navigator.clipboard.writeText(currentAssessment.invite_code);
+                            setCopied(true);
+                            setTimeout(() => setCopied(false), 2000);
+                          }}
+                          className="flex items-center gap-3 px-6 py-3 bg-[#E8B86D]/10 rounded-xl border border-[#E8B86D]/20 text-[10px] uppercase tracking-widest font-bold text-[#E8B86D] hover:bg-[#E8B86D]/20 transition-all"
+                        >
+                          {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />} 
+                          {copied ? 'Copied' : 'Copy Code'}
+                        </button>
+                        <button 
+                          onClick={() => handleCopyLink(currentAssessment.invite_code)}
+                          className="flex items-center gap-3 px-6 py-3 bg-white/5 rounded-xl border border-white/10 text-[10px] uppercase tracking-widest font-bold text-[#5C5650] hover:bg-white/10 transition-all"
+                        >
+                          {copiedLink ? <Check className="w-4 h-4" /> : <Share2 className="w-4 h-4" />} 
+                          {copiedLink ? 'Link Copied' : 'Copy Link'}
+                        </button>
+                      </div>
                       {currentAssessment.role === 'creator' && (
                         <button 
                           onClick={regenerateInviteCode}

@@ -123,28 +123,41 @@ try {
 
 // Ensure all existing assessments have a clean, unique invite code
 const fixIntegrity = () => {
-  const allAssessments = db.prepare("SELECT id, invite_code FROM assessments").all() as any[];
-  console.log(`Integrity Check: Normalizing codes for ${allAssessments.length} assessments.`);
-  const updateStmt = db.prepare("UPDATE assessments SET invite_code = ? WHERE id = ?");
+  try {
+    const allAssessments = db.prepare("SELECT id, invite_code FROM assessments").all() as any[];
+    console.log(`[INTEGRITY] Checking ${allAssessments.length} assessments...`);
+    const updateStmt = db.prepare("UPDATE assessments SET invite_code = ? WHERE id = ?");
+    const seenCodes = new Set<string>();
 
-  const seenCodes = new Set<string>();
-
-  for (const item of allAssessments) {
-    let currentCode = item.invite_code;
-    const isDirty = !currentCode || 
-                    typeof currentCode !== 'string' || 
-                    currentCode.length < 3 ||
-                    currentCode !== currentCode.trim().toUpperCase().replace(/[^A-Z0-9]/g, '') ||
-                    seenCodes.has(currentCode.trim().toUpperCase());
-
-    if (isDirty) {
-      let newCode = generateInviteCode();
-      console.log(`Integrity: Updating assessment ${item.id} with new unique code: ${newCode}`);
-      updateStmt.run(newCode, item.id);
-      seenCodes.add(newCode);
-    } else {
-      seenCodes.add(currentCode.trim().toUpperCase());
+    for (const item of allAssessments) {
+      let code = item.invite_code;
+      
+      // 1. Clean the code
+      let cleanCode = (code && typeof code === 'string') 
+        ? code.trim().toUpperCase().replace(/[^A-Z0-9]/g, '') 
+        : '';
+      
+      // 2. Check if it's valid (6 chars) and unique
+      if (cleanCode.length === 6 && !seenCodes.has(cleanCode)) {
+        if (code !== cleanCode) {
+          console.log(`[INTEGRITY] Cleaning code for ${item.id}: "${code}" -> "${cleanCode}"`);
+          updateStmt.run(cleanCode, item.id);
+        }
+        seenCodes.add(cleanCode);
+      } else {
+        // 3. If invalid, missing, or duplicate, generate a fresh one
+        let newCode = generateInviteCode();
+        while (seenCodes.has(newCode)) {
+          newCode = generateInviteCode();
+        }
+        console.log(`[INTEGRITY] Regenerating invalid/duplicate code for ${item.id}: "${code}" -> "${newCode}"`);
+        updateStmt.run(newCode, item.id);
+        seenCodes.add(newCode);
+      }
     }
+    console.log("[INTEGRITY] Check complete.");
+  } catch (error) {
+    console.error("[INTEGRITY] Failed:", error);
   }
 };
 
@@ -369,50 +382,49 @@ async function startServer() {
   app.post("/api/assessments/join-with-code", (req, res) => {
     try {
       const { userId, inviteCode } = req.body;
-      console.log(`DEBUG: Join attempt - User: ${userId}, Code: ${inviteCode}`);
+      const rawCode = String(inviteCode || '').trim();
+      const sanitizedCode = rawCode.toUpperCase().replace(/[^A-Z0-9]/g, '');
+      
+      console.log(`[JOIN] Attempt: User=${userId}, Raw="${rawCode}", Sanitized="${sanitizedCode}"`);
       
       if (!userId) {
-        return res.status(400).json({ error: "User ID is required. Please refresh and try again." });
+        return res.status(400).json({ error: "User session lost. Please log in again." });
       }
 
-      if (!inviteCode || typeof inviteCode !== 'string') {
-        return res.status(400).json({ error: "Invite code is required" });
-      }
-
-      const sanitizedCode = inviteCode.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
-      console.log(`DEBUG: Join attempt - User: ${userId}, Raw: ${inviteCode}, Sanitized: ${sanitizedCode}`);
-      
       if (sanitizedCode.length !== 6) {
-        return res.status(400).json({ error: "Invalid invite code format. Codes must be exactly 6 characters long." });
+        return res.status(400).json({ error: "Invite codes must be exactly 6 characters (letters and numbers)." });
       }
 
-      // Ultra-resilient search: 
-      // 1. Try exact match
-      // 2. Try case-insensitive match
-      // 3. Try match after removing all non-alphanumeric from DB side
+      // 1. Try exact match on sanitized code
       let assessment = db.prepare("SELECT * FROM assessments WHERE invite_code = ?").get(sanitizedCode) as any;
       
+      // 2. Fallback: Case-insensitive search
       if (!assessment) {
         assessment = db.prepare("SELECT * FROM assessments WHERE UPPER(invite_code) = ?").get(sanitizedCode) as any;
       }
 
+      // 3. Ultimate Fallback: Scan all and compare sanitized versions
       if (!assessment) {
-        // This is the most expensive but most robust check
-        const all = db.prepare("SELECT * FROM assessments").all() as any[];
-        assessment = all.find(a => {
+        const all = db.prepare("SELECT id, invite_code FROM assessments").all() as any[];
+        const match = all.find(a => {
           if (!a.invite_code) return false;
-          const dbSanitized = a.invite_code.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
-          return dbSanitized === sanitizedCode;
+          return a.invite_code.trim().toUpperCase().replace(/[^A-Z0-9]/g, '') === sanitizedCode;
         });
+        if (match) {
+          assessment = db.prepare("SELECT * FROM assessments WHERE id = ?").get(match.id);
+        }
       }
 
       if (!assessment) {
-        console.log(`DEBUG: Assessment not found for code: ${sanitizedCode}`);
-        // Log a few codes from the DB to see what's there
-        const sampleCodes = db.prepare("SELECT invite_code FROM assessments ORDER BY created_at DESC LIMIT 10").all();
-        console.log("DEBUG: Recent codes in DB:", JSON.stringify(sampleCodes));
-        return res.status(404).json({ error: `Invite code "${sanitizedCode}" not found. Please verify with your partner.` });
+        console.log(`[JOIN] Failed: Code "${sanitizedCode}" not found in database.`);
+        // Debug: Log the last 5 codes created to see if they match the user's expectation
+        const recent = db.prepare("SELECT id, invite_code, created_at FROM assessments ORDER BY created_at DESC LIMIT 5").all();
+        console.log("[JOIN] Recent codes in DB:", JSON.stringify(recent));
+        
+        return res.status(404).json({ error: `Invite code "${sanitizedCode}" not found. Please double-check with your partner.` });
       }
+
+      console.log(`[JOIN] Found Assessment: ${assessment.id} (${assessment.name})`);
 
       const participants = db.prepare("SELECT * FROM assessment_participants WHERE assessment_id = ?").all(assessment.id) as any[];
       const isCreator = participants.some(p => p.user_id === userId && p.role === 'creator');
