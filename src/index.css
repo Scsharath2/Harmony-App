@@ -37,3 +37,54 @@
   0%, 100% { opacity: 0.15; }
   50% { opacity: 0.45; }
 }
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(232, 184, 109, 0.2);
+  border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(232, 184, 109, 0.4);
+}
+
+.liquid-bg {
+  background: linear-gradient(135deg, #08070F 0%, #10101C 100%);
+  position: relative;
+  overflow: hidden;
+}
+
+.liquid-blob {
+  position: absolute;
+  width: 500px;
+  height: 500px;
+  background: radial-gradient(circle, rgba(232, 184, 109, 0.05) 0%, transparent 70%);
+  filter: blur(80px);
+  border-radius: 50%;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.liquid-transition-enter {
+  mask-image: radial-gradient(circle at center, black 0%, transparent 0%);
+  animation: liquid-reveal 1.2s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@keyframes liquid-reveal {
+  0% { mask-image: radial-gradient(circle at center, black 0%, transparent 0%); }
+  100% { mask-image: radial-gradient(circle at center, black 200%, transparent 200%); }
+}
+
+.glass-morph {
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}

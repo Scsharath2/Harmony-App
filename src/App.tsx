@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Heart, Users, ClipboardCheck, BarChart3, MessageSquare, Plus, ArrowRight, LogOut, ChevronRight, Loader2, AlertCircle, Sparkles, Share2, Copy, Check, ChevronLeft, Trash2, Edit2, CreditCard, History, Info, X, Key } from 'lucide-react';
+import { Heart, Users, ClipboardCheck, BarChart3, MessageSquare, Plus, ArrowRight, LogOut, ChevronRight, Loader2, AlertCircle, Sparkles, Share2, Copy, Check, ChevronLeft, Trash2, Edit2, CreditCard, History, Info, X, Key, Lock } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { io } from 'socket.io-client';
 import { calculateScores, generateHarmonyReport } from './services/harmonyService';
@@ -34,6 +34,9 @@ const PILLARS_CONFIG: Record<string, { icon: string, color: string, desc: string
   'Intimacy': { id: 'intimacy', icon: "🕯️", color: "#F472B6", desc: "Connection, closeness & care" },
   'Lifestyle': { id: 'lifestyle', icon: "☀️", color: "#A3E635", desc: "Daily rhythms & how you live" },
 };
+
+const TRIAL_PILLARS = ['Emotional', 'Conflict', 'Financial'];
+const ALL_PILLARS = Object.keys(PILLARS_CONFIG);
 
 interface User {
   id: string;
@@ -94,6 +97,7 @@ export default function App() {
   const [copied, setCopied] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   const [currentPillar, setCurrentPillar] = useState<string | null>(null);
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
   const handleCopyLink = (code: string) => {
@@ -138,9 +142,19 @@ export default function App() {
       if (user) fetchAssessments(user.id);
     });
 
+    socket.on('responses:updated', (data) => {
+      console.log("Real-time: Responses updated", data);
+      if (currentAssessment && data.assessmentId === currentAssessment.id) {
+        fetch(`/api/responses/${currentAssessment.id}`)
+          .then(res => res.json())
+          .then(data => setAllResponses(data));
+      }
+    });
+
     return () => {
       socket.off('partner:joined');
       socket.off('assessment:updated');
+      socket.off('responses:updated');
     };
   }, [currentAssessment, user]);
 
@@ -489,7 +503,12 @@ export default function App() {
       setReport({ ...reportData, scoring });
       setView('report');
     } catch (err: any) {
-      console.error("Report Generation Error:", err);
+      console.error("Report Generation Error Details:", {
+        error: err,
+        message: err.message,
+        stack: err.stack,
+        scoringData: calculateScores(questions, allResponses, currentAssessment.participants || [])
+      });
       setError("We encountered a cosmic ripple while generating your report. Please try again in a moment.");
     } finally {
       setLoading(false);
@@ -910,213 +929,308 @@ export default function App() {
                     </div>
                   </section>
 
-                  <section>
-                    <div className="flex items-center justify-between mb-6">
-                      <h3 className="text-[10px] uppercase tracking-[0.2em] font-black text-[#5C5650] flex items-center gap-3">
-                        <ClipboardCheck className="w-4 h-4" /> Modules
-                      </h3>
-                      {currentAssessment.type === 'trial' && (
-                        <button 
-                          onClick={() => setShowPaymentModal(true)}
-                          className="text-[10px] font-black text-[#E8B86D] hover:text-[#F2EDE4] transition-colors uppercase tracking-widest"
-                        >
-                          Upgrade to Full
-                        </button>
-                      )}
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      {(currentAssessment.type === 'full' 
-                        ? ['Emotional', 'Conflict', 'Financial', 'Family', 'Life Vision', 'Parenting', 'Intimacy', 'Lifestyle'] 
-                        : ['Emotional', 'Conflict', 'Financial']).map((pillar) => {
-                        const pillarQs = questions.filter(q => q.pillar === pillar);
-                        const answeredCount = pillarQs.filter(q => responses[q.id]).length;
-                        const totalCount = pillarQs.length;
-                        const progress = totalCount > 0 ? (answeredCount / totalCount) * 100 : 0;
-                        const config = PILLARS_CONFIG[pillar] || { icon: '✨', color: '#E8B86D' };
-
-                        return (
-                          <motion.div 
-                            key={pillar} 
-                            whileHover={{ scale: 1.02, y: -2 }}
-                            onClick={() => setCurrentPillar(pillar)}
-                            className="p-6 bg-white/5 border border-white/5 rounded-2xl hover:border-[#E8B86D]/20 transition-all group cursor-pointer"
-                          >
-                            <div className="flex items-center justify-between mb-4">
-                              <div className="flex items-center gap-4">
-                                <span className="text-2xl">{config.icon}</span>
-                                <span className="font-bold text-[#F2EDE4]">{pillar}</span>
-                              </div>
-                              <span className="text-[10px] text-[#5C5650] font-bold uppercase tracking-widest">{answeredCount}/{totalCount}</span>
-                            </div>
-                            <div className="w-full h-1 bg-white/5 rounded-full overflow-hidden">
-                              <motion.div 
-                                initial={{ width: 0 }}
-                                animate={{ width: `${progress}%` }}
-                                className="h-full bg-gradient-to-r from-[#E8B86D] to-[#C4893A] transition-all duration-1000"
-                              ></motion.div>
-                            </div>
-                          </motion.div>
-                        );
-                      })}
-                    </div>
-                  </section>
-
-                  <div className="flex flex-col sm:flex-row gap-5 pt-6">
-                    {(() => {
-                      const relevantPillars = currentAssessment.type === 'full' 
-                        ? ['Emotional', 'Conflict', 'Financial', 'Family', 'Life Vision', 'Parenting', 'Intimacy', 'Lifestyle'] 
-                        : ['Emotional', 'Conflict', 'Financial'];
-                      const relevantQs = questions.filter(q => relevantPillars.includes(q.pillar));
-                      const isComplete = allResponses.length >= relevantQs.length * 2 && allResponses.length > 0;
-                      
-                      return isComplete ? (
-                        <motion.button 
-                          whileHover={{ scale: 1.02 }}
-                          whileTap={{ scale: 0.98 }}
-                          onClick={generateReport}
-                          className="flex-1 bg-gradient-to-br from-[#E8B86D] to-[#C4893A] text-[#08070F] py-5 rounded-2xl font-bold hover:opacity-90 transition-all shadow-xl shadow-[#E8B86D]/20 flex items-center justify-center gap-3 uppercase tracking-widest text-xs"
-                        >
-                          <BarChart3 className="w-5 h-5" /> Reveal Harmony Report
-                        </motion.button>
-                      ) : (
-                        <div className="flex-1 p-8 bg-[#E8B86D]/5 rounded-3xl border border-[#E8B86D]/20 text-center">
-                          <div className="w-12 h-12 bg-[#E8B86D]/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-[#E8B86D]/20">
-                            <Sparkles className="w-6 h-6 text-[#E8B86D]" />
+                  <AnimatePresence mode="wait">
+                    {!currentPillar ? (
+                      <motion.div 
+                        key="modules-grid"
+                        initial={{ opacity: 0, scale: 0.98 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 1.02, filter: 'blur(10px)' }}
+                        transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+                        className="space-y-12"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h3 className="text-3xl font-serif text-[#F2EDE4] mb-2">Alignment Journey</h3>
+                            <p className="text-[#5C5650] italic text-sm">Select a module to explore and align your relationship pillars.</p>
                           </div>
-                          <h4 className="text-xl font-serif mb-2 text-[#F2EDE4]">Awaiting Alignment</h4>
-                          <p className="text-sm text-[#5C5650] max-w-sm mx-auto italic">
-                            {allResponses.length < relevantQs.length * 2 
-                              ? `The full Compatibility DNA and Harmony Report will be unveiled once both of you complete all ${relevantPillars.length} modules.` 
-                              : 'Your shared journey insights are ready to be explored.'}
-                          </p>
-                          {currentAssessment.participants?.length === 1 && currentAssessment.role === 'creator' && (
-                            <motion.button
+                          {currentAssessment.type === 'trial' && (
+                            <motion.button 
                               whileHover={{ scale: 1.05 }}
-                              onClick={() => setShowInviteModal(true)}
-                              className="mt-6 text-[10px] uppercase tracking-widest font-black text-[#E8B86D] hover:text-[#F2EDE4] transition-colors"
+                              whileTap={{ scale: 0.95 }}
+                              onClick={() => setShowPaymentModal(true)}
+                              className="bg-[#E8B86D]/10 border border-[#E8B86D]/30 text-[#E8B86D] px-6 py-2 rounded-full text-[10px] font-black uppercase tracking-widest hover:bg-[#E8B86D] hover:text-[#08070F] transition-all"
                             >
-                              Invite Partner to Begin →
+                              Upgrade to Full
                             </motion.button>
                           )}
                         </div>
-                      );
-                    })()}
-                  </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                          {ALL_PILLARS.map((pillar, idx) => {
+                            const isLocked = currentAssessment.type === 'trial' && !TRIAL_PILLARS.includes(pillar);
+                            const pillarQs = questions.filter(q => q.pillar === pillar);
+                            const answeredCount = pillarQs.filter(q => responses[q.id]).length;
+                            const totalCount = pillarQs.length;
+                            const progress = totalCount > 0 ? (answeredCount / totalCount) * 100 : 0;
+                            const config = PILLARS_CONFIG[pillar] || { icon: '✨', color: '#E8B86D' };
+
+                            return (
+                              <motion.div 
+                                key={pillar}
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: idx * 0.05 }}
+                                whileHover={isLocked ? {} : { y: -8, scale: 1.02 }}
+                                onClick={() => {
+                                  if (isLocked) {
+                                    setShowPaymentModal(true);
+                                  } else {
+                                    setCurrentPillar(pillar);
+                                    setCurrentQuestionIndex(0);
+                                  }
+                                }}
+                                className={`group relative p-8 rounded-[2rem] border transition-all cursor-pointer overflow-hidden h-64 flex flex-col justify-between ${
+                                  isLocked 
+                                    ? 'bg-white/[0.02] border-white/5 opacity-60 grayscale' 
+                                    : 'bg-[#10101C] border-white/5 hover:border-[#E8B86D]/30 shadow-2xl shadow-black/20'
+                                }`}
+                              >
+                                {/* Liquid Blob Background */}
+                                {!isLocked && (
+                                  <div 
+                                    className="absolute -right-10 -top-10 w-32 h-32 rounded-full blur-3xl opacity-0 group-hover:opacity-20 transition-opacity duration-700"
+                                    style={{ backgroundColor: config.color }}
+                                  />
+                                )}
+
+                                <div>
+                                  <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-6 text-2xl border transition-all ${
+                                    isLocked ? 'bg-white/5 border-white/10' : 'bg-[#E8B86D]/10 border-[#E8B86D]/20 group-hover:scale-110 group-hover:rotate-3'
+                                  }`}>
+                                    {isLocked ? <Lock className="w-6 h-6 text-[#5C5650]" /> : config.icon}
+                                  </div>
+                                  <h4 className={`text-xl font-serif mb-2 ${isLocked ? 'text-[#5C5650]' : 'text-[#F2EDE4]'}`}>{pillar}</h4>
+                                  <p className="text-[10px] text-[#5C5650] uppercase tracking-widest font-bold">
+                                    {isLocked ? 'Locked' : `${answeredCount}/${totalCount} Questions`}
+                                  </p>
+                                </div>
+
+                                {!isLocked && (
+                                  <div className="space-y-3">
+                                    <div className="w-full h-1 bg-white/5 rounded-full overflow-hidden">
+                                      <motion.div 
+                                        initial={{ width: 0 }}
+                                        animate={{ width: `${progress}%` }}
+                                        className="h-full bg-[#E8B86D]"
+                                      />
+                                    </div>
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-[9px] text-[#E8B86D] font-black uppercase tracking-widest">
+                                        {Math.round(progress)}% Complete
+                                      </span>
+                                      <ArrowRight className="w-4 h-4 text-[#E8B86D] opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
+                                    </div>
+                                  </div>
+                                )}
+                              </motion.div>
+                            );
+                          })}
+                        </div>
+
+                        {/* Summary/CTA Section */}
+                        <div className="pt-12 border-t border-white/5 flex flex-col items-center">
+                          {(() => {
+                            const relevantPillars = currentAssessment.type === 'full' ? ALL_PILLARS : TRIAL_PILLARS;
+                            const relevantQs = questions.filter(q => relevantPillars.includes(q.pillar));
+                            
+                            // Check if both participants have answered all relevant questions
+                            const participants = currentAssessment.participants || [];
+                            const isComplete = participants.length === 2 && relevantQs.every(q => {
+                              const qRes = allResponses.filter(r => r.question_id === q.id);
+                              const userIds = new Set(qRes.map(r => r.user_id));
+                              return userIds.size === 2;
+                            }) && relevantQs.length > 0;
+                            
+                            return isComplete ? (
+                              <motion.button 
+                                whileHover={{ scale: 1.05 }}
+                                whileTap={{ scale: 0.95 }}
+                                onClick={generateReport}
+                                className="bg-gradient-to-br from-[#E8B86D] to-[#C4893A] text-[#08070F] px-12 py-5 rounded-2xl font-bold hover:opacity-90 transition-all shadow-2xl shadow-[#E8B86D]/20 flex items-center justify-center gap-4 uppercase tracking-[0.2em] text-xs"
+                              >
+                                <BarChart3 className="w-5 h-5" /> Reveal Harmony Report
+                              </motion.button>
+                            ) : (
+                              <div className="flex flex-col items-center gap-4 opacity-40">
+                                <Sparkles className="w-8 h-8 text-[#E8B86D]" />
+                                <p className="text-xs text-[#5C5650] uppercase tracking-[0.3em] font-black">
+                                  {allResponses.length < relevantQs.length * 2 
+                                    ? 'Complete all modules to unlock report' 
+                                    : 'Insights are ready'}
+                                </p>
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      </motion.div>
+                    ) : (
+                      <motion.div 
+                        key="pillar-focus"
+                        initial={{ opacity: 0, scale: 1.05, filter: 'blur(20px)' }}
+                        animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
+                        exit={{ opacity: 0, scale: 0.95, filter: 'blur(20px)' }}
+                        transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
+                        className="relative min-h-[70vh] flex flex-col"
+                      >
+                        {/* Liquid Blobs for Focus View */}
+                        <div className="absolute -left-20 -top-20 w-96 h-96 bg-[#E8B86D]/5 rounded-full blur-[100px] pointer-events-none" />
+                        <div className="absolute -right-20 -bottom-20 w-96 h-96 bg-[#E8B86D]/5 rounded-full blur-[100px] pointer-events-none" />
+
+                        <div className="flex flex-col md:flex-row md:items-end justify-between gap-8 mb-12 relative z-10">
+                          <div className="space-y-4">
+                            <button 
+                              onClick={() => setCurrentPillar(null)}
+                              className="group flex items-center gap-3 text-[#5C5650] hover:text-[#E8B86D] transition-colors"
+                            >
+                              <ChevronLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
+                              <span className="text-[10px] uppercase tracking-[0.3em] font-black">Back to Journey</span>
+                            </button>
+                            <div className="flex items-center gap-6">
+                              <div className="w-20 h-20 rounded-3xl bg-[#E8B86D]/10 border border-[#E8B86D]/20 flex items-center justify-center text-4xl shadow-2xl shadow-[#E8B86D]/10">
+                                {PILLARS_CONFIG[currentPillar]?.icon}
+                              </div>
+                              <div>
+                                <h2 className="text-5xl font-serif text-[#F2EDE4] mb-2">{currentPillar}</h2>
+                                <p className="text-[#5C5650] italic max-w-lg">{PILLARS_CONFIG[currentPillar]?.desc}</p>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="bg-white/5 border border-white/10 rounded-3xl p-6 backdrop-blur-md">
+                            {(() => {
+                              const pillarQs = questions.filter(q => q.pillar === currentPillar);
+                              const answeredCount = pillarQs.filter(q => responses[q.id]).length;
+                              const totalCount = pillarQs.length;
+                              const progress = totalCount > 0 ? (answeredCount / totalCount) * 100 : 0;
+                              return (
+                                <div className="space-y-4 min-w-[200px]">
+                                  <div className="flex justify-between items-end">
+                                    <span className="text-[10px] uppercase tracking-widest font-black text-[#5C5650]">Progress</span>
+                                    <span className="text-2xl font-serif text-[#E8B86D]">{Math.round(progress)}%</span>
+                                  </div>
+                                  <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
+                                    <motion.div 
+                                      initial={{ width: 0 }}
+                                      animate={{ width: `${progress}%` }}
+                                      className="h-full bg-[#E8B86D]"
+                                    />
+                                  </div>
+                                  <p className="text-[9px] text-[#5C5650] uppercase tracking-widest text-center font-bold">
+                                    {answeredCount} of {totalCount} Questions Answered
+                                  </p>
+                                </div>
+                              );
+                            })()}
+                          </div>
+                        </div>
+
+                        <div className="flex-grow relative z-10 flex flex-col justify-center">
+                          <AnimatePresence mode="wait">
+                            {(() => {
+                              const pillarQs = questions.filter(q => q.pillar === currentPillar);
+                              const q = pillarQs[currentQuestionIndex];
+                              if (!q) return null;
+
+                              return (
+                                <motion.div 
+                                  key={q.id} 
+                                  initial={{ opacity: 0, x: 20, filter: 'blur(10px)' }}
+                                  animate={{ opacity: 1, x: 0, filter: 'blur(0px)' }}
+                                  exit={{ opacity: 0, x: -20, filter: 'blur(10px)' }}
+                                  transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+                                  className="space-y-12 max-w-3xl mx-auto w-full"
+                                >
+                                  <div className="space-y-6 text-center">
+                                    <div className="flex items-center justify-center gap-4 mb-4">
+                                      <span className="text-white/5 font-serif text-8xl leading-none">0{currentQuestionIndex + 1}</span>
+                                    </div>
+                                    <h4 className="text-4xl font-serif leading-tight text-[#F2EDE4]">{q.text}</h4>
+                                  </div>
+                                  
+                                  <div className="grid grid-cols-1 gap-4">
+                                    {q.options.map((opt) => (
+                                      <motion.button
+                                        key={opt}
+                                        whileHover={{ scale: 1.01, x: 5 }}
+                                        whileTap={{ scale: 0.99 }}
+                                        onClick={() => {
+                                          setResponses({ ...responses, [q.id]: opt });
+                                          if (currentQuestionIndex < pillarQs.length - 1) {
+                                            setTimeout(() => setCurrentQuestionIndex(prev => prev + 1), 300);
+                                          }
+                                        }}
+                                        className={`p-8 rounded-[2rem] text-sm font-bold transition-all text-left border flex items-center justify-between group ${
+                                          responses[q.id] === opt 
+                                            ? 'bg-[#E8B86D]/10 border-[#E8B86D] text-[#E8B86D] shadow-2xl shadow-[#E8B86D]/10' 
+                                            : 'bg-white/5 border-white/5 text-[#5C5650] hover:border-white/20 hover:text-[#F2EDE4]'
+                                        }`}
+                                      >
+                                        <span>{opt}</span>
+                                        <div className={`w-6 h-6 rounded-full border flex items-center justify-center transition-all ${
+                                          responses[q.id] === opt ? 'bg-[#E8B86D] border-[#E8B86D]' : 'border-white/10 group-hover:border-white/30'
+                                        }`}>
+                                          {responses[q.id] === opt && <Check className="w-4 h-4 text-[#08070F]" />}
+                                        </div>
+                                      </motion.button>
+                                    ))}
+                                  </div>
+                                </motion.div>
+                              );
+                            })()}
+                          </AnimatePresence>
+                        </div>
+
+                        <div className="mt-12 pt-8 border-t border-white/5 flex justify-between items-center relative z-10">
+                          <div className="flex items-center gap-4">
+                            <button 
+                              onClick={() => setCurrentQuestionIndex(prev => Math.max(0, prev - 1))}
+                              disabled={currentQuestionIndex === 0}
+                              className="p-4 rounded-full bg-white/5 border border-white/10 text-[#5C5650] hover:text-[#E8B86D] disabled:opacity-20 transition-all"
+                            >
+                              <ChevronLeft className="w-6 h-6" />
+                            </button>
+                            <button 
+                              onClick={() => {
+                                const pillarQs = questions.filter(q => q.pillar === currentPillar);
+                                setCurrentQuestionIndex(prev => Math.min(pillarQs.length - 1, prev + 1));
+                              }}
+                              disabled={(() => {
+                                const pillarQs = questions.filter(q => q.pillar === currentPillar);
+                                return currentQuestionIndex === pillarQs.length - 1;
+                              })()}
+                              className="p-4 rounded-full bg-white/5 border border-white/10 text-[#5C5650] hover:text-[#E8B86D] disabled:opacity-20 transition-all"
+                            >
+                              <ChevronRight className="w-6 h-6" />
+                            </button>
+                          </div>
+                          
+                          <div className="flex items-center gap-6">
+                            <button 
+                              onClick={() => setCurrentPillar(null)}
+                              className="text-[10px] uppercase tracking-widest font-black text-[#5C5650] hover:text-[#F2EDE4] transition-colors"
+                            >
+                              Exit Module
+                            </button>
+                            <motion.button 
+                              whileHover={{ scale: 1.05 }}
+                              whileTap={{ scale: 0.95 }}
+                              onClick={submitResponses}
+                              disabled={loading}
+                              className="bg-[#E8B86D] text-[#08070F] px-10 py-4 rounded-2xl font-bold hover:opacity-90 transition-all shadow-2xl shadow-[#E8B86D]/20 flex items-center gap-3 uppercase tracking-widest text-[10px] disabled:opacity-50"
+                            >
+                              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Check className="w-4 h-4" /> Save Pillar Progress</>}
+                            </motion.button>
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
               </GlassCard>
             </motion.div>
           )}
 
-          {currentPillar && (
-            <motion.div 
-              key="questionnaire"
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#08070F]/90 backdrop-blur-xl"
-            >
-              <div className="max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-                <GlassCard className="p-12 relative">
-                  <div className="flex items-center justify-between mb-12">
-                    <div className="flex items-center gap-4">
-                      <button 
-                        onClick={() => setCurrentPillar(null)} 
-                        className="group flex items-center gap-4 px-6 py-3 bg-white/5 border border-white/10 rounded-full hover:bg-[#E8B86D]/10 hover:border-[#E8B86D]/30 transition-all"
-                      >
-                        <div className="w-8 h-8 rounded-full bg-[#E8B86D]/10 flex items-center justify-center group-hover:-translate-x-1 transition-transform">
-                          <ChevronLeft className="w-5 h-5 text-[#E8B86D]" />
-                        </div>
-                        <span className="text-[10px] uppercase tracking-[0.2em] font-black text-[#5C5650] group-hover:text-[#F2EDE4] transition-colors">Back to Journey</span>
-                      </button>
-                      <h2 className="text-4xl font-serif">{currentPillar}</h2>
-                    </div>
-                    {(() => {
-                      const pillarQs = questions.filter(q => q.pillar === currentPillar);
-                      const answeredCount = pillarQs.filter(q => responses[q.id]).length;
-                      const totalCount = pillarQs.length;
-                      return (
-                        <div className="text-right">
-                          <span className="text-[10px] uppercase tracking-[0.2em] font-black text-[#E8B86D]">{answeredCount} of {totalCount}</span>
-                          <p className="text-[10px] uppercase tracking-[0.2em] font-black text-[#5C5650]">Completed</p>
-                        </div>
-                      );
-                    })()}
-                  </div>
-
-                  {(() => {
-                    const pillarQs = questions.filter(q => q.pillar === currentPillar);
-                    const answeredCount = pillarQs.filter(q => responses[q.id]).length;
-                    const totalCount = pillarQs.length;
-                    const progress = totalCount > 0 ? (answeredCount / totalCount) * 100 : 0;
-                    return (
-                      <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden mb-12">
-                        <motion.div 
-                          initial={{ width: 0 }}
-                          animate={{ width: `${progress}%` }}
-                          className="h-full bg-gradient-to-r from-[#E8B86D] to-[#C4893A] transition-all duration-500"
-                        />
-                      </div>
-                    );
-                  })()}
-
-                  <div className="space-y-16">
-                    {questions.filter(q => q.pillar === currentPillar).length === 0 && (
-                      <div className="py-20 text-center bg-white/5 rounded-3xl border border-dashed border-white/10">
-                        <AlertCircle className="w-12 h-12 text-[#5C5650] mx-auto mb-4" />
-                        <p className="text-[#5C5650] font-serif italic">No questions found for this module yet.</p>
-                      </div>
-                    )}
-                    {questions.filter(q => q.pillar === currentPillar).map((q, idx) => {
-                      const config = PILLARS_CONFIG[q.pillar] || { icon: '✨', color: '#E8B86D' };
-                      return (
-                        <div key={q.id} className="space-y-6">
-                          <div className="flex items-start gap-6">
-                            <span className="text-white/10 font-serif text-4xl">0{idx + 1}</span>
-                            <div>
-                              <div className="flex items-center gap-3 mb-3">
-                                <span className="text-lg">{config.icon}</span>
-                                <span className="text-[10px] uppercase tracking-[0.2em] font-black text-[#E8B86D] bg-[#E8B86D]/10 px-3 py-1 rounded-full border border-[#E8B86D]/20">
-                                  {q.pillar}
-                                </span>
-                              </div>
-                              <h4 className="text-2xl font-serif leading-tight text-[#F2EDE4]">{q.text}</h4>
-                            </div>
-                          </div>
-                          <div className="grid grid-cols-1 gap-3 pl-16">
-                            {q.options.map((opt) => (
-                              <button
-                                key={opt}
-                                onClick={() => setResponses({ ...responses, [q.id]: opt })}
-                                className={`p-5 rounded-2xl text-sm font-bold transition-all text-left border ${
-                                  responses[q.id] === opt 
-                                    ? 'bg-[#E8B86D]/10 border-[#E8B86D] text-[#E8B86D] shadow-lg shadow-[#E8B86D]/10' 
-                                    : 'bg-white/5 border-white/5 text-[#5C5650] hover:border-white/20 hover:text-[#F2EDE4]'
-                                }`}
-                              >
-                                {opt}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  <div className="mt-20 pt-10 border-t border-white/5 flex justify-end">
-                    <motion.button 
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      onClick={submitResponses}
-                      disabled={loading}
-                      className="bg-gradient-to-br from-[#E8B86D] to-[#C4893A] text-[#08070F] px-12 py-5 rounded-2xl font-bold hover:opacity-90 transition-all shadow-xl shadow-[#E8B86D]/20 flex items-center gap-3 uppercase tracking-widest text-xs disabled:opacity-50"
-                    >
-                      {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Save Pillar Progress'}
-                    </motion.button>
-                  </div>
-                </GlassCard>
-              </div>
-            </motion.div>
-          )}
 
           {view === 'transactions' && (
             <motion.div 

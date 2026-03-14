@@ -1,7 +1,5 @@
 import { GoogleGenAI, Type } from "@google/genai";
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-
 export interface ScoringResult {
   pillarScores: Record<string, number>;
   overallAlignment: number;
@@ -9,6 +7,12 @@ export interface ScoringResult {
 }
 
 export async function generateHarmonyReport(scoringData: any, participants: any[]) {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error("Gemini API key is missing. Please check your environment variables.");
+  }
+  const ai = new GoogleGenAI({ apiKey });
+
   const prompt = `
     Generate a relationship compatibility report based on the following structured data:
     Participants: ${participants.map(p => p.name).join(' and ')}
