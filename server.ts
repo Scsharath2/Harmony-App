@@ -14,6 +14,14 @@ db.pragma('foreign_keys = ON');
 
 // Initialize Database
 db.exec(`
+  -- Clean existing data for a fresh start as requested
+  DELETE FROM responses;
+  DELETE FROM assessment_participants;
+  DELETE FROM reports;
+  DELETE FROM transactions;
+  DELETE FROM logs;
+  DELETE FROM assessments;
+
   CREATE TABLE IF NOT EXISTS users (
     id TEXT PRIMARY KEY,
     email TEXT UNIQUE,
@@ -166,39 +174,39 @@ fixIntegrity();
   // Seed Questions
 const seedQuestions = [
   // Emotional
-  { id: 'e1', pillar: 'Emotional', text: 'After a long, exhausting day, what would feel most comforting from your future spouse?', options: JSON.stringify(["Just sitting together quietly", "Listening fully while I share", "Doing something practical", "A warm hug and reassurance"]) },
+  { id: 'e1', pillar: 'Emotional', text: 'After a long, exhausting day, what would feel most comforting from your partner?', options: JSON.stringify(["Just sitting together quietly", "Listening fully while I share", "Doing something practical", "A warm hug and reassurance"]) },
   { id: 'e2', pillar: 'Emotional', text: 'In your home growing up, how was love and care most often expressed?', options: JSON.stringify(["Acts of service", "Open words and conversations", "Sacrifices made for family", "Quality time together"]) },
   { id: 'e3', pillar: 'Emotional', text: 'How do you typically handle emotional vulnerability?', options: JSON.stringify(["I share my feelings easily", "I need time to process alone first", "I prefer to show love through actions", "I find it difficult to be vulnerable"]) },
   
   // Conflict
-  { id: 'c1', pillar: 'Conflict', text: 'In many families, disagreements are kept private. How do you feel about that?', options: JSON.stringify(["Strongly agree", "Mostly agree", "Seek guidance from elders", "Open to outside perspective"]) },
-  { id: 'c2', pillar: 'Conflict', text: 'If you and your partner disagree about a major decision and families have strong opinions, how do you handle it?', options: JSON.stringify(["Decide together first", "Seek family guidance then decide", "Defer to elders", "Find a compromise for everyone"]) },
+  { id: 'c1', pillar: 'Conflict', text: 'In many families, disagreements are kept private. How do you feel about that?', options: JSON.stringify(["Strongly agree", "Mostly agree", "Seek guidance from trusted mentors", "Open to outside perspective"]) },
+  { id: 'c2', pillar: 'Conflict', text: 'If you and your partner disagree about a major decision and families have strong opinions, how do you handle it?', options: JSON.stringify(["Decide together first", "Seek guidance then decide", "Defer to elders/mentors", "Find a compromise for everyone"]) },
   { id: 'c3', pillar: 'Conflict', text: 'What is your primary conflict style?', options: JSON.stringify(["Address it immediately", "Take space to cool down", "Avoid it if possible", "Seek a middle ground quickly"]) },
 
   // Financial
-  { id: 'f1', pillar: 'Financial', text: 'After marriage, how do you picture managing financial responsibilities towards your respective parents?', options: JSON.stringify(["Independently support own parents", "Discuss and decide together", "Pool everything", "Household comes first"]) },
-  { id: 'f2', pillar: 'Financial', text: 'How do you imagine making large financial decisions?', options: JSON.stringify(["Together as equal partners", "Higher earner has bigger say", "With inputs from families", "One takes lead based on expertise"]) },
-  { id: 'f3', pillar: 'Financial', text: 'What is your primary financial goal for the first 3 years?', options: JSON.stringify(["Aggressive saving", "Investing in a home", "Lifestyle and travel", "Supporting extended family"]) },
+  { id: 'f1', pillar: 'Financial', text: 'How do you picture managing financial responsibilities towards your respective parents?', options: JSON.stringify(["Independently support own parents", "Discuss and decide together", "Pool everything", "Household comes first"]) },
+  { id: 'f2', pillar: 'Financial', text: 'How do you imagine making large financial decisions?', options: JSON.stringify(["Together as equal partners", "Higher earner has bigger say", "With inputs from trusted sources", "One takes lead based on expertise"]) },
+  { id: 'f3', pillar: 'Financial', text: 'What is your primary financial goal for the next 3 years?', options: JSON.stringify(["Aggressive saving", "Investing in a home", "Lifestyle and travel", "Supporting extended family"]) },
 
   // Family
-  { id: 'fa1', pillar: 'Family', text: 'How do you envision your living arrangement in the first few years?', options: JSON.stringify(["Living with or close to in-laws", "Living independently, visiting often", "Living in a different city", "Living separately, staying connected"]) },
-  { id: 'fa2', pillar: 'Family', text: 'When parents offer strong opinions about your married life, how do you handle it?', options: JSON.stringify(["Listen but decide as a couple", "Follow their guidance", "Evaluate each situation", "Maintain clear boundaries"]) },
+  { id: 'fa1', pillar: 'Family', text: 'How do you envision your living arrangement in the near future?', options: JSON.stringify(["Living with or close to family", "Living independently, visiting often", "Living in a different city", "Living separately, staying connected"]) },
+  { id: 'fa2', pillar: 'Family', text: 'When family members offer strong opinions about your relationship, how do you handle it?', options: JSON.stringify(["Listen but decide as a couple", "Follow their guidance", "Evaluate each situation", "Maintain clear boundaries"]) },
   { id: 'fa3', pillar: 'Family', text: 'How important are traditional family gatherings to you?', options: JSON.stringify(["Extremely important", "Important but need balance", "Prefer smaller, intimate settings", "Open to new traditions"]) },
 
   // Life Vision
-  { id: 'lv1', pillar: 'Life Vision', text: 'Where do you see both of you living five years after your wedding?', options: JSON.stringify(["Hometown, close to family", "Metro city for career", "Abroad", "Wherever life takes us"]) },
-  { id: 'lv2', pillar: 'Life Vision', text: 'How do you balance career ambitions with family life?', options: JSON.stringify(["Career is a priority for now", "Family always comes first", "Seek a perfect 50/50 balance", "Support whichever partner has a bigger opportunity"]) },
+  { id: 'lv1', pillar: 'Life Vision', text: 'Where do you see both of you living five years from now?', options: JSON.stringify(["Hometown, close to family", "Metro city for career", "Abroad", "Wherever life takes us"]) },
+  { id: 'lv2', pillar: 'Life Vision', text: 'How do you balance career ambitions with relationship life?', options: JSON.stringify(["Career is a priority for now", "Relationship always comes first", "Seek a perfect 50/50 balance", "Support whichever partner has a bigger opportunity"]) },
 
   // Parenting
-  { id: 'p1', pillar: 'Parenting', text: 'When do you imagine starting a family after marriage?', options: JSON.stringify(["Within 1–2 years", "After 3–4 years", "When both feel ready", "Still exploring"]) },
+  { id: 'p1', pillar: 'Parenting', text: 'When do you imagine starting a family?', options: JSON.stringify(["Within 1–2 years", "After 3–4 years", "When both feel ready", "Still exploring"]) },
   { id: 'p2', pillar: 'Parenting', text: 'What is your philosophy on child discipline?', options: JSON.stringify(["Strict and structured", "Gentle and conversational", "Follow family traditions", "Undecided/Flexible"]) },
 
   // Intimacy
-  { id: 'i1', pillar: 'Intimacy', text: 'How comfortable are you expressing your emotional needs to your future spouse?', options: JSON.stringify(["Very comfortable", "Comfortable over time", "Show through actions", "Find it difficult but want to work on it"]) },
+  { id: 'i1', pillar: 'Intimacy', text: 'How comfortable are you expressing your emotional needs to your partner?', options: JSON.stringify(["Very comfortable", "Comfortable over time", "Show through actions", "Find it difficult but want to work on it"]) },
   { id: 'i2', pillar: 'Intimacy', text: 'What does "quality time" look like to you?', options: JSON.stringify(["Deep conversations", "Shared activities/hobbies", "Physical closeness", "Just being in the same room"]) },
 
   // Lifestyle
-  { id: 'ls1', pillar: 'Lifestyle', text: 'How do you picture a typical Sunday in your married home?', options: JSON.stringify(["Family visits and meals", "Quiet morning together", "Out exploring", "Mix of family and couple time"]) },
+  { id: 'ls1', pillar: 'Lifestyle', text: 'How do you picture a typical Sunday in your shared home?', options: JSON.stringify(["Family visits and meals", "Quiet morning together", "Out exploring", "Mix of family and couple time"]) },
   { id: 'ls2', pillar: 'Lifestyle', text: 'How do you handle your social battery?', options: JSON.stringify(["I love hosting and being out", "I need regular quiet time", "I prefer small groups", "I follow my partner's lead"]) },
 ];
 
@@ -375,6 +383,14 @@ async function startServer() {
     const assessmentId = req.params.id;
     const { userId } = req.body;
     
+    if (!userId) return res.status(400).json({ error: "User ID is required" });
+
+    const participant = db.prepare("SELECT role FROM assessment_participants WHERE assessment_id = ? AND user_id = ?").get(assessmentId, userId) as any;
+    
+    if (!participant) {
+      return res.status(403).json({ error: "You are not a participant in this journey." });
+    }
+
     // Check if it already has a code
     const assessment = db.prepare("SELECT invite_code FROM assessments WHERE id = ?").get(assessmentId) as any;
     let inviteCode = assessment?.invite_code;

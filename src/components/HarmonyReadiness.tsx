@@ -17,7 +17,7 @@ const C = {
 function scoreFrame(s: number) {
   if (s >= 85) return { label: "Beautifully Aligned",  color: "#5ECFA0", insight: "You two are deeply in sync here. Nurture this — it's a real strength." };
   if (s >= 70) return { label: "Strongly Connected",   color: "#60B4F0", insight: "A solid foundation. Keep the conversation open and it will only deepen." };
-  if (s >= 50) return { label: "Rich to Explore",      color: "#E8B86D", insight: "This is where your most rewarding pre-wedding conversations live." };
+  if (s >= 50) return { label: "Rich to Explore",      color: "#E8B86D", insight: "This is where your most rewarding conversations live." };
   return        { label: "Growth Opportunity",         color: "#A78BFA", insight: "Different perspectives here are a gift — this is exactly what Harmony is for." };
 }
 
@@ -32,7 +32,7 @@ const pillars = [
   { id:"Lifestyle",   name:"Lifestyle",   icon:"☀️", color:"#A3E635" },
 ];
 
-export function WeddingReadiness({ scores, nameA, nameB }: { scores: Record<string, number>, nameA: string, nameB: string }) {
+export function HarmonyReadiness({ scores, nameA, nameB }: { scores: Record<string, number>, nameA: string, nameB: string }) {
   const values = Object.values(scores);
   const overall = values.length > 0 ? Math.round(values.reduce((a, b) => a + b, 0) / values.length) : 0;
   const sorted = Object.entries(scores).sort((a, b) => b[1] - a[1]);
@@ -43,18 +43,18 @@ export function WeddingReadiness({ scores, nameA, nameB }: { scores: Record<stri
 
   const readinessLabel = overall >= 85 ? "Beautifully Ready" : overall >= 70 ? "Wonderfully Prepared" : overall >= 50 ? "Lovingly Growing" : "Just Beginning";
   const readinessMsg = overall >= 85
-    ? "You two have done the rare and beautiful work of genuinely knowing each other. Walk toward your wedding day with confidence."
+    ? "You two have done the rare and beautiful work of genuinely knowing each other. Walk forward with confidence."
     : overall >= 70
-    ? "You have a strong, honest foundation. A few meaningful conversations will make your wedding day even more grounded."
+    ? "You have a strong, honest foundation. A few meaningful conversations will make your bond even more grounded."
     : overall >= 50
-    ? "Every couple starts somewhere. You've taken the most courageous step — choosing to understand each other before the big day."
-    : "The fact that you're here, doing this together, already says everything about the marriage you're building.";
+    ? "Every couple starts somewhere. You've taken the most courageous step — choosing to understand each other deeply."
+    : "The fact that you're here, doing this together, already says everything about the relationship you're building.";
 
   return (
     <div className="space-y-8">
       <div className="text-center p-10 bg-gradient-to-br from-[#E8B86D]/10 to-[#A78BFA]/10 border border-[#E8B86D]/30 rounded-[2.5rem] relative overflow-hidden">
         <div className="absolute top-0 right-0 w-40 h-40 bg-[#E8B86D]/10 blur-[60px] rounded-full pointer-events-none"></div>
-        <div className="text-[9px] tracking-[0.4em] text-[#5C5650] uppercase mb-4">Wedding Readiness</div>
+        <div className="text-[9px] tracking-[0.4em] text-[#5C5650] uppercase mb-4">Harmony Readiness</div>
         
         <div className="relative w-48 h-48 mx-auto mb-4">
           <ResponsiveContainer width="100%" height="100%">
@@ -131,7 +131,7 @@ export function WeddingReadiness({ scores, nameA, nameB }: { scores: Record<stri
               <div className="w-10 h-10 rounded-xl bg-[#E8B86D]/20 border border-[#E8B86D]/30 flex items-center justify-center text-xl shrink-0">{p?.icon}</div>
               <div className="flex-1">
                 <div className="text-xs font-bold text-[#E8B86D]">{p?.name}</div>
-                <div className="text-[10px] text-[#5C5650] mt-1 leading-relaxed">Your richest pre-wedding conversation — couples who explore this early build the deepest foundations.</div>
+                <div className="text-[10px] text-[#5C5650] mt-1 leading-relaxed">Your richest conversation — couples who explore this early build the deepest foundations.</div>
               </div>
               <div className="text-center shrink-0">
                 <div className="text-lg font-bold text-[#E8B86D]">{s}</div>

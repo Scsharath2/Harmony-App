@@ -5,7 +5,7 @@ import { io } from 'socket.io-client';
 import { calculateScores, generateHarmonyReport } from './services/harmonyService';
 import { GlassCard } from './components/GlassCard';
 import { RadarChart } from './components/RadarChart';
-import { WeddingReadiness } from './components/WeddingReadiness';
+import { HarmonyReadiness } from './components/HarmonyReadiness';
 import { TalkCards, AICoach, PillarComparisonChart, PillarInsights } from './components/ReportComponents';
 
 const socket = io();
@@ -450,7 +450,9 @@ export default function App() {
       const res = await fetch(`/api/assessment/${assessment.id}`);
       if (!res.ok) throw new Error("Failed to fetch assessment details");
       const data = await res.json();
-      setCurrentAssessment(data);
+      // Preserve role if it exists in the assessment object passed in, or find it in participants
+      const userRole = assessment.role || data.participants?.find((p: any) => p.id === user.id)?.role;
+      setCurrentAssessment({ ...data, role: userRole });
       
       const respRes = await fetch(`/api/responses/${assessment.id}`);
       if (!respRes.ok) throw new Error("Failed to fetch responses");
@@ -548,7 +550,8 @@ export default function App() {
       if (res.ok) {
         const updatedRes = await fetch(`/api/assessment/${currentAssessment.id}`);
         const updatedData = await updatedRes.json();
-        setCurrentAssessment(updatedData);
+        const userRole = currentAssessment.role || updatedData.participants?.find((p: any) => p.id === user.id)?.role;
+        setCurrentAssessment({ ...updatedData, role: userRole });
         setInviteCode(data.inviteCode);
         // Don't close payment modal immediately, show the code
       }
@@ -600,7 +603,7 @@ export default function App() {
             </div>
           </div>
           <h1 className="text-4xl font-serif text-center mb-2 text-[#F2EDE4]">Harmony</h1>
-          <p className="text-[#5C5650] text-center mb-10 italic font-serif text-lg">Professional Relationship Assessment & Alignment</p>
+          <p className="text-[#5C5650] text-center mb-10 italic font-serif text-lg">Relationship Evolution & Alignment</p>
           
           <form onSubmit={handleLogin} className="space-y-6">
             <div>
@@ -1306,8 +1309,18 @@ export default function App() {
                   </div>
                   <span className="text-[10px] uppercase tracking-[0.2em] font-black text-[#5C5650] group-hover:text-[#F2EDE4] transition-colors">Back to Journey</span>
                 </button>
-                <div className="flex items-center gap-3 text-[#E8B86D] font-bold uppercase tracking-widest text-xs">
-                  <Heart className="w-5 h-5 fill-[#E8B86D]" /> Harmony Report
+                <div className="flex items-center gap-3">
+                  {currentAssessment?.type === 'trial' && (
+                    <button 
+                      onClick={() => setShowPaymentModal(true)}
+                      className="bg-[#E8B86D]/10 border border-[#E8B86D]/30 text-[#E8B86D] px-4 py-2 rounded-full text-[9px] font-black uppercase tracking-widest hover:bg-[#E8B86D] hover:text-[#08070F] transition-all"
+                    >
+                      Upgrade to Full
+                    </button>
+                  )}
+                  <div className="flex items-center gap-3 text-[#E8B86D] font-bold uppercase tracking-widest text-xs">
+                    <Heart className="w-5 h-5 fill-[#E8B86D]" /> Harmony Report
+                  </div>
                 </div>
               </div>
 
@@ -1330,7 +1343,7 @@ export default function App() {
                 </div>
 
                 <div className="lg:col-span-5">
-                  <WeddingReadiness 
+                  <HarmonyReadiness 
                     scores={report.scoring.pillarScores} 
                     nameA={user?.name || "You"} 
                     nameB={currentAssessment?.participants?.find(p => p.id !== user?.id)?.name || "Partner"} 
@@ -1526,6 +1539,10 @@ export default function App() {
                   </ul>
                 </div>
               )}
+
+              <p className="text-[9px] text-[#5C5650] text-center italic mb-4">
+                By clicking "Pay & Unlock Now", you agree to our Terms of Service for the Full Harmony Journey.
+              </p>
 
               <div className="space-y-4">
                 {inviteCode ? (
